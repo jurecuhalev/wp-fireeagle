@@ -11,9 +11,33 @@ Author URI: http://URI_Of_The_Plugin_Author
 require_once dirname(__FILE__)."/lib/fireeagle.php";
 session_start();
 
+$fe_key = 'DZmIaMapfOuH';
+$fe_secret = 'yzSKJkHDxWOA6PA0fKG57xiLz07WZCNR';
+
+function wpfe_display_best_guess_name(){
+  global $fe_key; global $fe_secret;
+  
+  $best_guess_name = wp_cache_get('wpfe_best_guess_name');
+
+  if ($best_guess_name == false){
+    $access_token = get_option('wpfe_access_token');
+    $access_secret = get_option('wpfe_access_secret');
+
+    $fe = new FireEagle($fe_key, $fe_secret, $access_token, $access_secret);
+    $loc = $fe->user();
+    
+    $best_guess_name = htmlspecialchars($loc->user->best_guess->name);
+    wp_cache_set('wpfe_best_guess_name', $best_guess_name);
+    
+    $best_guess_name = $best_guess_name;
+  };
+  
+  return $best_guess_name;
+};
+
+
 function wpfe_wp_admin(){
-  $fe_key = 'DZmIaMapfOuH';
-  $fe_secret = 'yzSKJkHDxWOA6PA0fKG57xiLz07WZCNR';
+  global $fe_key; global $fe_secret;
   
   $access_token = get_option('wpfe_access_token');
   $access_secret = get_option('wpfe_access_secret');
