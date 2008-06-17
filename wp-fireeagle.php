@@ -42,14 +42,34 @@ function wpfe_wp_admin(){
   $access_token = get_option('wpfe_access_token');
   $access_secret = get_option('wpfe_access_secret');
   
-  echo "<h2>Test Manage</h2>";
+  ?>
+  <div class="wrap">
+  <h2>FireEagle Configuration</h2>
   
-  if ($_GET['step'] == '3') {
+  <?php
+  
+  // check if we have tokens and be happy about it then
+  if (($access_token != false) && ($access_secret != false)){
+    $fe = new FireEagle($fe_key, $fe_secret, $access_token, $access_secret);
+    
+    ?>
+    <h3>Authentication</h3>
+    <p>Congratulations, your FireEagle account is sucesfully authorized with this Wordpress installation.</p>
+    <p>If you want, you can <a href="#">revoke it</a> (to be implemented).</p>
+    
+    <h3>Location</h3>
+    <p>FireEagle's best guess about your current location is: <b><?php echo wpfe_display_best_guess_name() ?></b>.</p>
+    <p><b>Note:</b> plugin checkes FireEagle for updated location status every 15 minutes.</p>
+    
+    <?php
+
+    
+  } elseif ($_GET['step'] == '3') {
   
   echo "<h1>Step 3</h1>";
   $fe = new FireEagle($fe_key, $fe_secret, $access_token, $access_secret);
   
-  $loc = $fe->user(); // equivalent to $fe->call("user")
+  $loc = $fe->user();
   ?><h2>Where you are<?php if ($loc->user->best_guess) echo ": ".htmlspecialchars($loc->user->best_guess->name) ?></h2><?php
   if (empty($loc->user->location_hierarchy)) {
    ?><p>Fire Eagle doesn't know where you are yet.</p><?php // '
