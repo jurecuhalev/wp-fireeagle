@@ -1,11 +1,31 @@
 <?php
 /*
 Plugin Name: Wordpress FireEagle plugin
-Plugin URI: http://URI_Of_Page_Describing_Plugin_and_Updates
-Description: A brief description of the plugin.
-Version: The plugin's Version Number, e.g.: 1.0
-Author: Name Of The Plugin Author
-Author URI: http://URI_Of_The_Plugin_Author
+Plugin URI: http://www.jurecuhalev.com/blog/wp-fireeagle
+Description: FireEagle Integration for Wordpress
+Version: 0.1
+Author: Jure Cuhalev <jure@zemanta.com>
+Author URI: http://www.jurecuhalev.com/blog
+
+Copyright 2008  Jure Cuhalev
+
+Parts of Authorization Code and styling taken from Flickr Manager 2.0.2 
+plugin written by Trent Gardner - http://tgardner.net/
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
 */
 
 require_once dirname(__FILE__)."/lib/fireeagle.php";
@@ -27,12 +47,14 @@ function wpfe_display_best_guess_name(){
     $loc = $fe->user();
     
     $best_guess_name = htmlspecialchars($loc->user->best_guess->name);
-    wp_cache_set('wpfe_best_guess_name', $best_guess_name);
+    if (empty($loc->user->location_hierarchy)) {
+     ?>Fire Eagle doesn't know where you are yet.<?php
+    };
     
-    $best_guess_name = $best_guess_name;
+    wp_cache_set('wpfe_best_guess_name', $best_guess_name);
   };
   
-  return $best_guess_name;
+  ?><?php echo $best_guess_name?><?php
 };
 
 
@@ -48,6 +70,30 @@ function wpfe_wp_admin(){
   
   <?php
   
+  if(!empty($_REQUEST['action'])) : 
+    switch ($_REQUEST['action']) :
+      case 'token':
+        $fe = new FireEagle($fe_key, $fe_secret, $_SESSION['request_token'], $_SESSION['request_secret']);
+        $tok = $fe->getAccessToken();
+        if (!isset($tok['oauth_token']) || !is_string($tok['oauth_token'])
+            || !isset($tok['oauth_token_secret']) || !is_string($tok['oauth_token_secret'])) {
+         error_log("Bad token from FireEagle::getAccessToken(): ".var_export($tok, TRUE));
+         echo "ERROR! FireEagle::getAccessToken() returned an invalid response. Giving up.";
+         exit;
+        };
+
+        $_SESSION['auth_state'] = "done";
+
+        update_option('wpfe_access_token', $tok['oauth_token']);
+        update_option('wpfe_access_secret', $tok['oauth_token_secret']);
+
+        $access_token = get_option('wpfe_access_token');
+        $access_secret = get_option('wpfe_access_secret');
+      break;
+    endswitch;
+  endif;
+  
+  
   // check if we have tokens and be happy about it then
   if (($access_token != false) && ($access_secret != false)){
     $fe = new FireEagle($fe_key, $fe_secret, $access_token, $access_secret);
@@ -58,45 +104,13 @@ function wpfe_wp_admin(){
     <p>If you want, you can <a href="#">revoke it</a> (to be implemented).</p>
     
     <h3>Location</h3>
-    <p>FireEagle's best guess about your current location is: <b><?php echo wpfe_display_best_guess_name() ?></b>.</p>
+    <p>FireEagle's best guess about your current location is: <b><?php wpfe_display_best_guess_name() ?></b>.</p>
     <p><b>Note:</b> plugin checkes FireEagle for updated location status every 15 minutes.</p>
     
     <?php
 
-    
-  } elseif ($_GET['step'] == '3') {
-  
-  echo "<h1>Step 3</h1>";
-  $fe = new FireEagle($fe_key, $fe_secret, $access_token, $access_secret);
-  
-  $loc = $fe->user();
-  ?><h2>Where you are<?php if ($loc->user->best_guess) echo ": ".htmlspecialchars($loc->user->best_guess->name) ?></h2><?php
-  if (empty($loc->user->location_hierarchy)) {
-   ?><p>Fire Eagle doesn't know where you are yet.</p><?php // '
-  };
-  
-  } elseif ($_GET['step'] == '2') {
-    echo "<h1>Step 2</h1>";
-         
-    $fe = new FireEagle($fe_key, $fe_secret, $_SESSION['request_token'], $_SESSION['request_secret']);
-    $tok = $fe->getAccessToken();
-    if (!isset($tok['oauth_token']) || !is_string($tok['oauth_token'])
-        || !isset($tok['oauth_token_secret']) || !is_string($tok['oauth_token_secret'])) {
-     error_log("Bad token from FireEagle::getAccessToken(): ".var_export($tok, TRUE));
-     echo "ERROR! FireEagle::getAccessToken() returned an invalid response. Giving up.";
-     exit;
-    };
-    
-    $_SESSION['auth_state'] = "done";
-    
-    update_option('wpfe_access_token', $tok['oauth_token']);
-    update_option('wpfe_access_secret', $tok['oauth_token_secret']);
-    
-    echo('<p>Great. Now go to <a href="'.$_SERVER["REQUEST_URI"].'&step=3">final step</a></p>');
-    
-        
   } else {
-  
+  // otherwise start authentication process
   $fe = new FireEagle($fe_key, $fe_secret);
   $tok = $fe->getRequestToken();
   
@@ -111,11 +125,25 @@ function wpfe_wp_admin(){
   $_SESSION['auth_state'] = "start";
   $_SESSION['request_token'] = $token = $tok['oauth_token'];
   $_SESSION['request_secret'] = $tok['oauth_token_secret'];
-  echo('Location: <a href="'.$fe->getAuthorizeURL($token).'" target="_new">Authorize FireEagle</a>');
   
-  echo('<p>Afterwards. Please proceed to <a href="'.$_SERVER["REQUEST_URI"].'&step=2">Step 2</a></p>');
+  ?>
+  <div align="center">
+    <h3>Step 1:</h3>
+    <form>
+      <input type="button" value="Authenticate" onclick="window.open('<?php echo $fe->getAuthorizeURL($token); ?>')" style="background: url( images/fade-butt.png ); border: 3px double #999; border-left-color: #ccc; border-top-color: #ccc; color: #333; padding: 0.25em; font-size: 1.5em;" />
+    </form>
 
+    <h3>Step 2:</h3>
+    <form method="post" action="<?php echo str_replace( '%7E', '~', $_SERVER['REQUEST_URI']); ?>">
+      <input type="hidden" name="action" value="token" />
+      <input type="submit" name="Submit" value="<?php _e('Finish &raquo;') ?>" style="background: url( images/fade-butt.png ); border: 3px double #999; border-left-color: #ccc; border-top-color: #ccc; color: #333; padding: 0.25em; font-size: 1.5em;" />
+    </form>
+  </div>
+  
+  <?php
   };
+  ?>
+  </div><?php
 };
 
 function wpfe_config_page($value='') {
